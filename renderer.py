@@ -12,9 +12,12 @@ TOUCH_BCK_IMG  = Image.open(TOUCH_IMG_PATH).convert("RGB").resize((800, 100))
 BUTTS_BCK_IMG  = Image.open(BUTTS_IMG_PATH).convert("RGB")
 BUTTON_IMG_ARRAY = []
 
-PLAY_IMG    = Image.open("assets/play.png").convert("RGB").resize((80,80))
-PAUSE_IMG   = Image.open("assets/pause.png").convert("RGB").resize((80,80))
-NOPLAY_IMG  = Image.open("assets/spotify_disconnect.png").convert("RGB").resize((100,100))
+AUDIO_CONF_IMG    = Image.open("assets/audio_settings.png").convert("RGBA").resize((150,150))
+
+PLAY_IMG    = Image.open("assets/play.png").convert("RGBA").resize((80,80))
+PAUSE_IMG   = Image.open("assets/pause.png").convert("RGBA").resize((80,80))
+NOPLAY_IMG  = Image.open("assets/spotify_disconnect.png").convert("RGBA").resize((100,100))
+DISCONNECT_IMG = Image.open("assets/disconnect.png").convert("RGBA").resize((100,100))
 
 D0_UNMUTE_IMG = Image.open("assets/volume_true.png").convert("RGBA").resize((80,80))
 D1_UNMUTE_IMG = Image.open("assets/input_on.png").convert("RGBA").resize((80,80))
@@ -62,7 +65,7 @@ class Renderer:
         self.rend_touch_bck()
         self.rend_buttons_bck()
 
-    def draw_touch_bounds_box(self, draw):
+    def _draw_touch_bounds_box(self, draw):
         for i in range(4):
             x0 = i * 200
             x1 = x0 + 199  # stay within the image bounds
@@ -72,7 +75,7 @@ class Renderer:
                 width=2
             )
 
-    def draw_touch_test_lines(self, draw):
+    def _draw_touch_test_lines(self, draw):
         for y in range(0, 100, 10):
             draw.line(
                 [(0, y), (800, y)],
@@ -84,8 +87,8 @@ class Renderer:
         img  = TOUCH_BCK_IMG.copy()
         draw = ImageDraw.Draw(img)
 
-        #self.draw_touch_test_lines(draw)
-        #self.draw_touch_bounds_box(draw)
+        #self._draw_touch_test_lines(draw)
+        #self._draw_touch_bounds_box(draw)
 
         buf = io.BytesIO()
         img.convert("RGB").save(buf, format="JPEG", quality=95)
@@ -95,8 +98,8 @@ class Renderer:
         img  = TOUCH_BCK_IMG.copy()
         draw = ImageDraw.Draw(img)
 
-        #self.draw_touch_test_lines(draw)
-        self.draw_touch_bounds_box(draw)
+        #self._draw_touch_test_lines(draw)
+        self._draw_touch_bounds_box(draw)
         for idx in range(4):
             d_idx = f"d{idx}"
             match self.state.audio[d_idx]["mute"]:
@@ -109,13 +112,20 @@ class Renderer:
                     icon = TOUCH_MUTE_ICOS[idx].copy()
                     img.paste(icon, (TOUCH_MUTE_ICOS_XY[idx][0], TOUCH_MUTE_ICOS_XY[idx][1]), icon)
             if idx == 2:
-                text = self.state.audio[d_idx]["assignment"]
+                text = self.state.audio[d_idx]["media_name"]
+                app_text = self.state.audio[d_idx]["app_name"]
                 if text is not None:
                     if draw.textbbox((0, 0), text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 170:
                         while draw.textbbox((0, 0), text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 170:
                             text = text[:-1]
                         text = text + "..."
                     draw.text(((420), 3), text, fill="white", font = ImageFont.truetype(FONT_PATH, 20), anchor="la")
+                if app_text is not None:
+                    if draw.textbbox((0, 0), app_text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 100:
+                        while draw.textbbox((0, 0), app_text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 100:
+                            app_text = app_text[:-1]
+                        app_text = app_text + "..."
+                    draw.text(((490), 65), app_text, fill="white", font = ImageFont.truetype(FONT_PATH, 20), anchor="la")
 
         #print(dial_audio)
 
@@ -128,7 +138,7 @@ class Renderer:
 
         cover = self.state.spotify.get("cover")
         if cover is None:
-            return self.draw_button("Spotify")
+            return self.clear_spot_cover()
 
         image = cover.copy()
         w, h = image.size
@@ -156,6 +166,62 @@ class Renderer:
             native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
             self.deck.set_key_image(b_idx, native)
 
+    def draw_button_2(self):
+        print("render button 2")
+        img = BUTTON_IMG_ARRAY[2].copy()
+        overlay = AUDIO_CONF_IMG.copy()
+
+        x = (img.width - overlay.width) // 2
+        #x = x + (img.width // 2) - 45
+        y = 30 + ((img.height - overlay.height) // 2)
+        #y = y - (img.height // 2) + 40
+        img.paste(overlay, (x, y), overlay)
+
+        draw = ImageDraw.Draw(img)
+        draw.text(((img.width // 2), 35), "FIREFOX", fill="white", font = ImageFont.truetype(FONT_PATH, 40), anchor="mm")
+        
+        native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
+        self.deck.set_key_image(2, native)
+
+    # CLOCK VISUALIZER
+    def draw_button_3(self):
+        hour = int(self.state.clock.get("hour"))
+        minute = self.state.clock.get("minute")
+        clock = self.state.clock.get("text", ".. . ..")
+        img = BUTTON_IMG_ARRAY[3].copy()
+        x = img.width // 2
+        y = img.height // 2
+        offset = img.height // 8
+        draw = ImageDraw.Draw(img)
+
+        match self.state.hr24:
+            case False:
+                # AM/PM Time format
+                am = (hour < 12)
+                if hour == 0: hour = 12
+                if hour > 12: hour = hour - 12
+                draw.text((x, y - offset), f"{hour} . {minute}", fill="white", font = ImageFont.truetype(FONT_PATH, 50), anchor="mm")
+                draw.text((x, y + offset), "A M" if am else "P M", fill="white", font = ImageFont.truetype(FONT_PATH, 30), anchor="mm")
+            case _:
+                # 24 Hour Time Format
+                draw.text((x, y), clock, fill="white", font = ImageFont.truetype(FONT_PATH, 50), anchor="mm")
+
+        native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
+        self.deck.set_key_image(3, native)
+
+    # MEDIA PLAYER 2 CONTROLLER
+    def draw_button_6(self):
+        img = BUTTON_IMG_ARRAY[6].copy()
+        overlay = DISCONNECT_IMG.copy()
+
+        x = (img.width - overlay.width) // 2
+        y = (img.height - overlay.height) // 2
+        img.paste(overlay, (x, y), overlay)
+        
+        native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
+        self.deck.set_key_image(6, native)
+
+    # SPOTIFY PLAY/PAUSE
     def draw_button_7(self):
         img = BUTTON_IMG_ARRAY[7].copy()
 
@@ -169,7 +235,7 @@ class Renderer:
         
         x = (img.width - overlay.width) // 2
         y = (img.height - overlay.height) // 2
-        img.paste(overlay, (x, y))
+        img.paste(overlay, (x, y), overlay)
         
         native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
         self.deck.set_key_image(7, native)

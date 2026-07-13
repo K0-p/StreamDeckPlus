@@ -1,6 +1,5 @@
 import threading
 import subprocess
-import pulsectl
 
 from StreamDeck.Devices.StreamDeck import DialEventType, TouchscreenEventType
 from evdev import UInput, ecodes
@@ -57,44 +56,47 @@ class InputHandler:
     # -----------------------------
     # BUTTON PRESS EVENTS
     # -----------------------------
-    def button_0(self, val):
+    def _button_0(self, val):
         if val is True:
             print('BUTTON 0 ACTION')
 
-    def button_1(self, val):
+    def _button_1(self, val):
         if val is True:
             print('BUTTON 1 ACTION')
 
-    def button_2_single(self):
+    def _button_2_single(self):
         print('BUTTON 2 SINGLE ACTION')
+        self.state.render_queue.put("button_2")
 
-    def button_2_double(self):
+    def _button_2_double(self):
         print('BUTTON 2 DOUBLE ACTION')
 
-    def button_3_single(self):
-        print('BUTTON 3 SINGLE ACTION')
+    def _button_3_single(self):
+        self.state.hr24 = not self.state.hr24
+        self.state.render_queue.put("clock")
 
-    def button_3_double(self):
+    def _button_3_double(self):
         print('BUTTON 3 DOUBLE ACTION')
 
-    def button_4(self, val):
+    def _button_4(self, val):
         if val is True:
             print('BUTTON 4 ACTION')
 
-    def button_5(self, val):
+    def _button_5(self, val):
         if val is True:
             print('BUTTON 5 ACTION')
 
-    def button_6_single(self):
+    def _button_6_single(self):
         print('BUTTON 6 SINGLE ACTION')
+        self.state.render_queue.put("button_6")
 
-    def button_6_double(self):
+    def _button_6_double(self):
         print('BUTTON 6 DOUBLE ACTION')
 
-    def button_7_single(self):
+    def _button_7_single(self):
         subprocess.run(["playerctl", "--player=spotify", "play-pause"])
 
-    def button_7_double(self):
+    def _button_7_double(self):
         subprocess.run(["playerctl", "--player=spotify", "next"])
 
     # -----------------------------
@@ -104,14 +106,15 @@ class InputHandler:
 
         #print(f"Button {key} {'pressed' if state else 'released'}")
         match key:
-            case 0: self.button_0(state)
-            case 1: self.button_1(state)
-            case 2: self.handle_button_click(key, state, self.button_2_single, self.button_2_double)
-            case 3: self.handle_button_click(key, state, self.button_3_single, self.button_3_double)
-            case 4: self.button_4(state)
-            case 5: self.button_5(state)
-            case 6: self.handle_button_click(key, state, self.button_6_single, self.button_6_double)
-            case 7: self.handle_button_click(key, state, self.button_7_single, self.button_7_double)
+            case 0: self._button_0(state)
+            case 1: self._button_1(state)
+            case 2: self.handle_button_click(key, state, self._button_2_single, self._button_2_double)
+            case 3:
+                if state is True: self._button_3_single()
+            case 4: self._button_4(state)
+            case 5: self._button_5(state)
+            case 6: self.handle_button_click(key, state, self._button_6_single, self._button_6_double)
+            case 7: self.handle_button_click(key, state, self._button_7_single, self._button_7_double)
 
 
     ####################################################

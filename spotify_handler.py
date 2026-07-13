@@ -1,7 +1,5 @@
 import asyncio
 import io
-import threading
-from queue import Queue
 import urllib.request
 
 from PIL import Image
@@ -66,6 +64,7 @@ class SpotifyHandler:
             self.state.spotify = {}
             self.state.render_queue.put("button_7")
             self.state.render_queue.put("clear_spotify_cover")
+            self.state.audio_queue.put(("update_spotify_id", None, None, None))
 
     ####################################################################
     # Connect to Spotify
@@ -87,6 +86,7 @@ class SpotifyHandler:
         self.connected = True
 
         print("Connected to Spotify")
+        self.state.audio_queue.put(("update_spotify_id", None, None, None))
         await self._read_initial_state()
 
     ####################################################################
@@ -185,6 +185,6 @@ class SpotifyHandler:
             self.state.render_queue.put("button_7")
 
         if metadata is not None:
-            print(f"SPOTIFY: New Track - {spotify["title"]} --- {spotify["artist"]}")
+            if self.state.DEBUG: print(f"SPOTIFY: New Track - {spotify["title"]} --- {spotify["artist"]}")
             self.state.render_queue.put("spotify_cover")
              #TODO: lock?

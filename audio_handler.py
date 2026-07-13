@@ -1,8 +1,5 @@
 import pulsectl
-from queue import Queue
 import subprocess
-
-DEBUG = True
 
 class AudioHandler:
 
@@ -17,9 +14,10 @@ class AudioHandler:
                             0: "Master_out",
                             1: "Master_in",
                             2: None,
-                            3: "Spotify",
+                            3: None,    # Used for spotify control
                         })
         self.bind_idx = 0
+        self.SPOT_ID = None
 
 
     def run(self):
@@ -44,7 +42,7 @@ class AudioHandler:
 
     def update(self, pulse):
 
-        if DEBUG: print("\n AUDIO RUNTIME:")
+        if self.state.DEBUG: print("\n AUDIO RUNTIME:")
         self.update_sink(pulse)
         self.update_source(pulse)
         self.update_inputs(pulse)
@@ -74,7 +72,7 @@ class AudioHandler:
                 if self.state.audio[d_idx]["vol"] != 0:
                         self.state.audio[d_idx]["nonzero_vol"] = self.state.audio[d_idx]["vol"]
 
-        if DEBUG: print(f"{self.state.audio["sink"]["name"]} --- VOL = {self.state.audio["sink"]["volume"]}  (muted={self.state.audio["sink"]["mute"]})")
+        if self.state.DEBUG: print(f"{self.state.audio["sink"]["name"]} --- VOL = {self.state.audio["sink"]["volume"]}  (muted={self.state.audio["sink"]["mute"]})")
 
     def update_source(self, pulse):
 
@@ -102,7 +100,7 @@ class AudioHandler:
                 else:
                     self.state.audio[d_idx]["mute"] = True           
 
-        if DEBUG: print(f'{self.state.audio["source"]["name"]} --- 'f'VOL = {self.state.audio["source"]["volume"]} 'f'(muted={self.state.audio["source"]["mute"]})')
+        if self.state.DEBUG: print(f'{self.state.audio["source"]["name"]} --- 'f'VOL = {self.state.audio["source"]["volume"]} 'f'(muted={self.state.audio["source"]["mute"]})')
 
     def update_inputs(self, pulse):
         self.available_apps = []
@@ -110,8 +108,12 @@ class AudioHandler:
         inputs = {}
         for item in pulse.sink_input_list():
             name = item.proplist.get("application.name","Unknown",)
-            self.available_apps.append(name)
-            inputs[name] = {
+            id = item.index
+            self.available_apps.append(id)
+            inputs[id] = {
+                "app_name": name,
+                "media_name" : item.name,
+                "name" : id,
                 "volume":   int(item.volume.value_flat * 100),
                 "mute":     item.mute,
                 "index":    item.index,
@@ -119,14 +121,20 @@ class AudioHandler:
 
             for idx in range(4):
                 d_idx = f"d{idx}"
-                if self.state.audio[d_idx]["assignment"] == name:
-                    if DEBUG: print(f"            Dial {idx} match with {name}")
+                # TODO: this creases problems when there are multiple instances of the same name :/
+                if self.state.audio[d_idx]["assignment"] == id:
+                    if self.state.DEBUG: print(f"            Dial {idx} match with id {id}")
                     self.state.audio[d_idx]["vol"] = int(item.volume.value_flat * 100)
                     self.state.audio[d_idx]["mute"] = (self.state.audio[d_idx]["vol"] == 0)
+                    self.state.audio[d_idx]["app_name"] = name
+                    self.state.audio[d_idx]["media_name"] = item.name
+                    self.state.audio[d_idx]["name"] = id
                     if self.state.audio[d_idx]["vol"] != 0:
                         self.state.audio[d_idx]["nonzero_vol"] = self.state.audio[d_idx]["vol"]
+                if self.SPOT_ID is None:
+                    if name == "Spotify": self._update_spotify_id()
 
-            if DEBUG: print(f"{name} --- VOL = {inputs[name]["volume"]}  (muted={inputs[name]["mute"]})")
+            if self.state.DEBUG: print(f"{name}: {item.name} --- VOL = {inputs[id]["volume"]}  (muted={inputs[id]["mute"]})")
 
         # check if dial binding still valid
         self.validate_dial_bind(2)   # dial 2 is bindable - none others are
@@ -165,7 +173,7 @@ class AudioHandler:
         d_idx = None
         for idx in range(4):
             d_idx = f"d{idx}"
-            if self.state.audio[d_idx]["assignment"] == "Spotify":
+            if self.state.audio[d_idx]["assignment"] == self.SPOT_ID:
                 break
         if d_idx is None:
             print("NO SPOTIFY DIAL FOUND")
@@ -194,19 +202,41 @@ class AudioHandler:
             print("UNKNOWN AUDIO SPOTIFY COMMAND")
 
     def app_update(self, type, val, app_name):
-        if app_name == "Spotify":
+        if (app_name == "Spotify") or (app_name == self.SPOT_ID):
             self.spotify_update(type, val)
         elif app_name == None:
             print("DIAL APP NOT BOUND")
         else:
             #print("UPDATE APP ", app_name, "val = ", val)
             for item in self.control.sink_input_list():
-                name = item.proplist.get("application.name", "Unknown")
-                if name == app_name:
+                id = item.index
+                if id == app_name:
                     current = int(item.volume.value_flat * 100)
                     new_volume = max(0, min(100, current + val))
                     self.control.volume_set_all_chans(item, new_volume / 100.0)
+                    return
+            print(f"DIAL APP ID {app_name} NOT FOUND")
 
+    def _update_spotify_id(self):
+        # find spotify pid
+        self.SPOT_ID = None
+        for item in self.control.sink_input_list():
+            name = item.proplist.get("application.name","Unknown",)
+            id = item.index
+            if name == "Spotify":
+                self.SPOT_ID = id
+                if self.state.DEBUG: print(f"SPOTIFY ID: {self.SPOT_ID}")
+                # TODO: hardcoded to dial 3 for now
+                self.state.audio["d3"] = {
+                    "assignment": id,
+                    "vol": 50,
+                    "nonzero_vol": 50,
+                    "mute": 0,
+                }
+                self.update_inputs(self.control)
+                self.state.render_queue.put("audio_touchbar")
+                return
+        if self.state.DEBUG: print(f"SPOTIFY ID COULD NOT BE FOUND")
 
     def process_commands(self):
         while not self.audio_queue.empty():
@@ -219,6 +249,8 @@ class AudioHandler:
                 self.app_update(type, value, app_name)
             elif command == "dial_bind":
                 self.rotate_dial_bind(value)
+            elif command == "update_spotify_id":
+                self._update_spotify_id()
             else:
                 print("UNKNOWN AUDIO COMMAND: ", command)
 
@@ -239,18 +271,19 @@ class AudioHandler:
                 return
                 
         # Debind since invalid
-        if DEBUG: print(f"DIAL {d_idx} binding to app {binded_app} has been broken")
-        self.state.audio[d_idx]["assignment"] = None
+        if self.state.DEBUG:
+            print(f"DIAL {d_idx} binding to app {binded_app} has been broken")
+            self.state.audio[d_idx]["assignment"] = None
+            self.state.audio_queue.put(("dial_bind", None, 2, None))
 
     def rotate_dial_bind(self, dial):
         d_idx = f"d{dial}"
-        #print("ROTATE DIAL ", dial)
         self.bind_idx += 1
 
         if len(self.available_apps) == 0:
-            if DEBUG: print("NO AVAILABLE APPS TO BIND TO")
+            if self.state.DEBUG: print("NO AVAILABLE APPS TO BIND TO")
             self.state.audio[d_idx]["assignment"] = None
-            if DEBUG: print("\n AUDIO RUNTIME:")
+            if self.state.DEBUG: print("\n AUDIO RUNTIME:")
             self.update_inputs(self.control)
             self.state.render_queue.put("audio_touchbar")
             return
@@ -258,7 +291,8 @@ class AudioHandler:
         if self.bind_idx >= len(self.available_apps):
             self.bind_idx = 0   # loop back to start of list
         self.state.audio[d_idx]["assignment"] = self.available_apps[self.bind_idx]
-        if DEBUG: print("\n AUDIO RUNTIME:")
+        if self.state.DEBUG: print(f"DIAL {dial} has been rotated to ID ",self.state.audio[d_idx]["assignment"])
+        if self.state.DEBUG: print("\n AUDIO RUNTIME:")
         self.update_inputs(self.control)
         self.state.render_queue.put("audio_touchbar")
 
@@ -272,5 +306,7 @@ class AudioHandler:
                 "vol": 50,
                 "nonzero_vol": 50,
                 "mute": 0,
+                "app_name": None,
+                "media_name": None,
             }
-        if DEBUG: print(self.state.audio)
+        if self.state.DEBUG: print(self.state.audio)

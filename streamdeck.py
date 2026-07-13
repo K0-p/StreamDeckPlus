@@ -5,6 +5,7 @@ from StreamDeck.DeviceManager import DeviceManager
 
 from audio_handler import AudioHandler
 from spotify_handler import SpotifyHandler
+from clock_handler import ClockHandler
 from input_handler import InputHandler
 from renderer import Renderer
 
@@ -23,6 +24,7 @@ class AppState:
             "cover": None,
             "status": "",
         }
+        self.DEBUG = True
 
 
 def main():
@@ -49,13 +51,13 @@ def main():
 
     audio = AudioHandler(state, renderer)
     spotify = SpotifyHandler(state, renderer)
+    clock = ClockHandler(state)
     controller = InputHandler(deck, state, renderer)
 
     threading.Thread(target=audio.run, daemon=True).start()
     threading.Thread(target=spotify.run, daemon=True).start()
+    threading.Thread(target=clock.run, daemon=True).start()
     threading.Thread(target=controller.run, daemon=True).start()
-
-    renderer.render()
 
     try:
         while True:
@@ -69,6 +71,12 @@ def main():
             elif request == "rend_touch_bck":
                 renderer.render()
             # BUTTONS
+            elif request == "clock":
+                renderer.draw_button_3()
+            elif request == "button_2":
+                renderer.draw_button_2()
+            elif request == "button_6":
+                renderer.draw_button_6()
             elif request == "button_7":
                 renderer.draw_button_7()
             else:
