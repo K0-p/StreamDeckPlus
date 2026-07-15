@@ -1,5 +1,6 @@
 import threading
-from queue import Queue
+import signal
+from queue import Queue, Empty
 
 from StreamDeck.DeviceManager import DeviceManager
 
@@ -13,6 +14,7 @@ from renderer import Renderer
 class AppState:
     def __init__(self):
         self.lock = threading.Lock()
+        self.shutdown = threading.Event()
         self.render_queue = Queue()
         self.audio_queue = Queue()
         self.audio = {}
@@ -24,7 +26,8 @@ class AppState:
             "cover": None,
             "status": "",
         }
-        self.DEBUG = True
+        self.brightness = 100
+        self.DEBUG = False
 
 
 def main():
@@ -47,8 +50,14 @@ def main():
     deck.reset()
 
     state = AppState()
-    renderer = Renderer(deck, state)
 
+    def handle_shutdown(signum, frame):
+        print("Shutdown requested...")
+        state.shutdown.set()
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
+
+    renderer = Renderer(deck, state)
     audio = AudioHandler(state, renderer)
     spotify = SpotifyHandler(state, renderer)
     clock = ClockHandler(state)
@@ -59,9 +68,15 @@ def main():
     threading.Thread(target=clock.run, daemon=True).start()
     threading.Thread(target=controller.run, daemon=True).start()
 
+    state.render_queue.put("button_2")
+    state.render_queue.put("button_6")
+
     try:
-        while True:
-            request = state.render_queue.get()
+        while not state.shutdown.is_set():
+            try:
+                request = state.render_queue.get(timeout=0.5)
+            except Empty:
+                continue
             if request == "spotify_cover":
                 renderer.draw_spot_cover()
             elif request == "clear_spotify_cover":
@@ -70,6 +85,8 @@ def main():
                 renderer.render_audio()
             elif request == "rend_touch_bck":
                 renderer.render()
+            elif request == "brightness":
+                renderer.render_brightness()
             # BUTTONS
             elif request == "clock":
                 renderer.draw_button_3()
@@ -85,10 +102,12 @@ def main():
     except KeyboardInterrupt:
         print("Shutting down...")
         pass
-
-    deck.reset()
-    deck.set_brightness(0)
-    deck.close()
+    
+    finally:
+        print("Cleaning up...")
+        deck.reset()
+        deck.set_brightness(0)
+        deck.close()
 
 
 

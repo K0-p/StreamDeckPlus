@@ -65,11 +65,18 @@ class InputHandler:
             print('BUTTON 1 ACTION')
 
     def _button_2_single(self):
-        print('BUTTON 2 SINGLE ACTION')
-        self.state.render_queue.put("button_2")
+        brightness = self.state.brightness
+        new = max(10, min(100, brightness + 10))
+        if new != brightness:
+            self.state.brightness = new
+            self.state.render_queue.put("brightness")
 
     def _button_2_double(self):
-        print('BUTTON 2 DOUBLE ACTION')
+        brightness = self.state.brightness
+        new = 100
+        if new != brightness:
+            self.state.brightness = new
+            self.state.render_queue.put("brightness")
 
     def _button_3_single(self):
         self.state.hr24 = not self.state.hr24
@@ -87,11 +94,18 @@ class InputHandler:
             print('BUTTON 5 ACTION')
 
     def _button_6_single(self):
-        print('BUTTON 6 SINGLE ACTION')
-        self.state.render_queue.put("button_6")
+        brightness = self.state.brightness
+        new = max(10, min(100, brightness - 10))
+        if new != brightness:
+            self.state.brightness = new
+            self.state.render_queue.put("brightness")
 
     def _button_6_double(self):
-        print('BUTTON 6 DOUBLE ACTION')
+        brightness = self.state.brightness
+        new = 10
+        if new != brightness:
+            self.state.brightness = new
+            self.state.render_queue.put("brightness")
 
     def _button_7_single(self):
         subprocess.run(["playerctl", "--player=spotify", "play-pause"])

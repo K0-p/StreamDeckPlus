@@ -14,6 +14,9 @@ BUTTON_IMG_ARRAY = []
 
 AUDIO_CONF_IMG    = Image.open("assets/audio_settings.png").convert("RGBA").resize((150,150))
 
+BRIGHT_UP_IMG   = Image.open("assets/bright_up.png").convert("RGBA").resize((150,150))
+BRIGHT_DOWN_IMG = Image.open("assets/bright_down.png").convert("RGBA").resize((150,150))
+
 PLAY_IMG    = Image.open("assets/play.png").convert("RGBA").resize((80,80))
 PAUSE_IMG   = Image.open("assets/pause.png").convert("RGBA").resize((80,80))
 NOPLAY_IMG  = Image.open("assets/spotify_disconnect.png").convert("RGBA").resize((100,100))
@@ -64,6 +67,9 @@ class Renderer:
 
         self.rend_touch_bck()
         self.rend_buttons_bck()
+
+    def render_brightness(self):
+        self.deck.set_brightness(self.state.brightness)
 
     def _draw_touch_bounds_box(self, draw):
         for i in range(4):
@@ -167,18 +173,12 @@ class Renderer:
             self.deck.set_key_image(b_idx, native)
 
     def draw_button_2(self):
-        print("render button 2")
         img = BUTTON_IMG_ARRAY[2].copy()
-        overlay = AUDIO_CONF_IMG.copy()
+        overlay = BRIGHT_UP_IMG.copy()
 
         x = (img.width - overlay.width) // 2
-        #x = x + (img.width // 2) - 45
-        y = 30 + ((img.height - overlay.height) // 2)
-        #y = y - (img.height // 2) + 40
+        y = ((img.height - overlay.height) // 2)
         img.paste(overlay, (x, y), overlay)
-
-        draw = ImageDraw.Draw(img)
-        draw.text(((img.width // 2), 35), "FIREFOX", fill="white", font = ImageFont.truetype(FONT_PATH, 40), anchor="mm")
         
         native = PILHelper.to_native_format(self.deck, PILHelper.create_scaled_image(self.deck, img))
         self.deck.set_key_image(2, native)
@@ -212,7 +212,7 @@ class Renderer:
     # MEDIA PLAYER 2 CONTROLLER
     def draw_button_6(self):
         img = BUTTON_IMG_ARRAY[6].copy()
-        overlay = DISCONNECT_IMG.copy()
+        overlay = BRIGHT_DOWN_IMG.copy()
 
         x = (img.width - overlay.width) // 2
         y = (img.height - overlay.height) // 2
