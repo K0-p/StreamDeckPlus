@@ -1,0 +1,4 @@
+streamdeck
+pyusb
+pulsectl
+evdev
