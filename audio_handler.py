@@ -125,7 +125,7 @@ class AudioHandler:
                 if self.state.audio[d_idx]["assignment"] == id:
                     if self.state.DEBUG: print(f"            Dial {idx} match with id {id}")
                     self.state.audio[d_idx]["vol"] = int(item.volume.value_flat * 100)
-                    self.state.audio[d_idx]["mute"] = (self.state.audio[d_idx]["vol"] == 0)
+                    self.state.audio[d_idx]["mute"] = (self.state.audio[d_idx]["vol"] == 0) or bool(item.mute)
                     self.state.audio[d_idx]["app_name"] = name
                     self.state.audio[d_idx]["media_name"] = item.name
                     self.state.audio[d_idx]["name"] = id
@@ -211,9 +211,14 @@ class AudioHandler:
             for item in self.control.sink_input_list():
                 id = item.index
                 if id == app_name:
-                    current = int(item.volume.value_flat * 100)
-                    new_volume = max(0, min(100, current + val))
-                    self.control.volume_set_all_chans(item, new_volume / 100.0)
+                    if type == "volume":
+                        if self.state.DEBUG: print(f"{app_name} volume update")
+                        current = int(item.volume.value_flat * 100)
+                        new_volume = max(0, min(100, current + val))
+                        self.control.volume_set_all_chans(item, new_volume / 100.0)
+                    elif type == "toggle_mute":
+                        if self.state.DEBUG: print(f"{app_name} toggle mute")
+                        self.control.mute(item, not item.mute)
                     return
             print(f"DIAL APP ID {app_name} NOT FOUND")
 
@@ -249,6 +254,8 @@ class AudioHandler:
                 self.app_update(type, value, app_name)
             elif command == "dial_bind":
                 self.rotate_dial_bind(value)
+            elif command == "dial_unbind":
+                self.unbind_dial(value)
             elif command == "update_spotify_id":
                 self._update_spotify_id()
             else:
@@ -292,6 +299,21 @@ class AudioHandler:
             self.bind_idx = 0   # loop back to start of list
         self.state.audio[d_idx]["assignment"] = self.available_apps[self.bind_idx]
         if self.state.DEBUG: print(f"DIAL {dial} has been rotated to ID ",self.state.audio[d_idx]["assignment"])
+        if self.state.DEBUG: print("\n AUDIO RUNTIME:")
+        self.update_inputs(self.control)
+        self.state.render_queue.put("audio_touchbar")
+
+    def unbind_dial(self, dial):
+        d_idx = f"d{dial}"
+        if self.state.DEBUG: print(f"DIAL {dial} UNBOUND")
+        self.state.audio[d_idx] = {
+            "assignment": None,
+            "vol": 50,
+            "nonzero_vol": 50,
+            "mute": 0,
+            "app_name": None,
+            "media_name": None,
+        }
         if self.state.DEBUG: print("\n AUDIO RUNTIME:")
         self.update_inputs(self.control)
         self.state.render_queue.put("audio_touchbar")

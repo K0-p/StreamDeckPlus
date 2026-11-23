@@ -12,7 +12,7 @@ TOUCH_BCK_IMG  = Image.open(TOUCH_IMG_PATH).convert("RGB").resize((800, 100))
 BUTTS_BCK_IMG  = Image.open(BUTTS_IMG_PATH).convert("RGB")
 BUTTON_IMG_ARRAY = []
 
-AUDIO_CONF_IMG    = Image.open("assets/audio_settings.png").convert("RGBA").resize((150,150))
+AUDIO_CONF_IMG    = Image.open("assets/audio_settings.png").convert("RGBA").resize((100,100))
 
 BRIGHT_UP_IMG   = Image.open("assets/bright_up.png").convert("RGBA").resize((150,150))
 BRIGHT_DOWN_IMG = Image.open("assets/bright_down.png").convert("RGBA").resize((150,150))
@@ -108,18 +108,19 @@ class Renderer:
         self._draw_touch_bounds_box(draw)
         for idx in range(4):
             d_idx = f"d{idx}"
-            match self.state.audio[d_idx]["mute"]:
-                case 0:
-                    draw.text((((idx*200) + 175), 30), str(self.state.audio[d_idx]["vol"]), fill="white", font=self.font, anchor="ra")
-                    icon = TOUCH_UNMUTE_ICOS[idx].copy()
-                    img.paste(icon, (TOUCH_UNMUTE_ICOS_XY[idx][0], TOUCH_UNMUTE_ICOS_XY[idx][1]), icon)
-                case _:
-                    draw.text((((idx*200) + 175), 30), str(self.state.audio[d_idx]["vol"]), fill="red", font=self.font, anchor="ra")
-                    icon = TOUCH_MUTE_ICOS[idx].copy()
-                    img.paste(icon, (TOUCH_MUTE_ICOS_XY[idx][0], TOUCH_MUTE_ICOS_XY[idx][1]), icon)
+            text = self.state.audio[d_idx]["media_name"]
+            app_text = self.state.audio[d_idx]["app_name"]
+            if idx != 2 or (idx == 2 and (app_text is not None or text is not None)):
+                match self.state.audio[d_idx]["mute"]:
+                    case 0:
+                        draw.text((((idx*200) + 175), 30), str(self.state.audio[d_idx]["vol"]), fill="white", font=self.font, anchor="ra")
+                        icon = TOUCH_UNMUTE_ICOS[idx].copy()
+                        img.paste(icon, (TOUCH_UNMUTE_ICOS_XY[idx][0], TOUCH_UNMUTE_ICOS_XY[idx][1]), icon)
+                    case _:
+                        draw.text((((idx*200) + 175), 30), str(self.state.audio[d_idx]["vol"]), fill="red", font=self.font, anchor="ra")
+                        icon = TOUCH_MUTE_ICOS[idx].copy()
+                        img.paste(icon, (TOUCH_MUTE_ICOS_XY[idx][0], TOUCH_MUTE_ICOS_XY[idx][1]), icon)
             if idx == 2:
-                text = self.state.audio[d_idx]["media_name"]
-                app_text = self.state.audio[d_idx]["app_name"]
                 if text is not None:
                     if draw.textbbox((0, 0), text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 170:
                         while draw.textbbox((0, 0), text + "...", font=ImageFont.truetype(FONT_PATH, 20))[2] > 170:
@@ -132,6 +133,9 @@ class Renderer:
                             app_text = app_text[:-1]
                         app_text = app_text + "..."
                     draw.text(((490), 65), app_text, fill="white", font = ImageFont.truetype(FONT_PATH, 20), anchor="la")
+                if app_text is None and text is None:
+                    icon = AUDIO_CONF_IMG.copy()
+                    img.paste(icon, (450, 0), icon)
 
         #print(dial_audio)
 

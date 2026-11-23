@@ -6,6 +6,8 @@ from evdev import UInput, ecodes
 ui = UInput()
 
 DOUBLE_CLICK_TIME = 0.3  # seconds
+TOUCHBAR_WIDTH    = 800
+TOUCHBAR_SECTORS  = 4
 
 class InputHandler:
 
@@ -176,7 +178,7 @@ class InputHandler:
 
     def dial2_press(self, val):
         if val is True:
-            self.state.audio_queue.put(("dial_bind", None, 2, None))
+            self.state.audio_queue.put(("app_update", "toggle_mute", val, self.state.audio["d2"]["assignment"]))
 
     def dial3_press(self, val):
         if val is True:
@@ -208,14 +210,76 @@ class InputHandler:
     # Touchscreen
     ####################################################
 
-    def touch_callback(self,deck,event_type,value,):
+    def get_touch_sector(self, x):
+        sector_width = TOUCHBAR_WIDTH / TOUCHBAR_SECTORS
+        sector = int(x // sector_width)
+        return max(0, min(TOUCHBAR_SECTORS - 1, sector))
 
-        #print(event_type,value,)
+    # -----------------------------
+    # TOUCHBAR EVENTS
+    # -----------------------------
+    def touch_0(self, mode, val):
+        match mode:
+            case 0:
+                if self.state.DEBUG: print(f"Short touch in sector 0:" f"@ {val['x']},{val['y']}")
+            case 1:
+                if self.state.DEBUG: print(f"Long touch in sector 0:" f"@ {val['x']},{val['y']}")
+            case 2:
+                if self.state.DEBUG: print(f"Drag in sector 0: "f"{val['x']},{val['y']} -> "f"{val['x_out']},{val['y_out']}")
+
+    def touch_1(self, mode, val):
+        match mode:
+            case 0:
+                if self.state.DEBUG: print(f"Short touch in sector 1:" f"@ {val['x']},{val['y']}")
+            case 1:
+                if self.state.DEBUG: print(f"Long touch in sector 1:" f"@ {val['x']},{val['y']}")
+            case 2:
+                if self.state.DEBUG: print(f"Drag in sector 1: "f"{val['x']},{val['y']} -> "f"{val['x_out']},{val['y_out']}")
+
+    def touch_2(self, mode, val):
+        match mode:
+            case 0:
+                if self.state.DEBUG: print(f"Short touch in sector 2:" f"@ {val['x']},{val['y']}")
+                self.state.audio_queue.put(("dial_bind", None, 2, None))
+            case 1:
+                if self.state.DEBUG: print(f"Long touch in sector 2:" f"@ {val['x']},{val['y']}")
+                self.state.audio_queue.put(("dial_unbind", None, 2, None))
+            case 2:
+                if self.state.DEBUG: print(f"Drag in sector 2: "f"{val['x']},{val['y']} -> "f"{val['x_out']},{val['y_out']}")
+
+    def touch_3(self, mode, val):
+        match mode:
+            case 0:
+                if self.state.DEBUG: print(f"Short touch in sector 3:" f"@ {val['x']},{val['y']}")
+            case 1:
+                if self.state.DEBUG: print(f"Long touch in sector 3:" f"@ {val['x']},{val['y']}")
+            case 2:
+                if self.state.DEBUG: print(f"Drag in sector 3: "f"{val['x']},{val['y']} -> "f"{val['x_out']},{val['y_out']}")
+
+    # -----------------------------
+    # TOUCHBAR MAIN HANDLER
+    # -----------------------------
+    def touch_callback(self, deck, event_type, value):
+        mode = 0
+
         if event_type == TouchscreenEventType.SHORT:
-            print("Short touch @ " + str(value['x']) + "," + str(value['y']))
+            sector = self.get_touch_sector(value['x'])
 
         elif event_type == TouchscreenEventType.LONG:
-            print("Long touch @ " + str(value['x']) + "," + str(value['y']))
+            sector = self.get_touch_sector(value['x'])
+            mode = 1
 
         elif event_type == TouchscreenEventType.DRAG:
-            print("Drag started @ " + str(value['x']) + "," + str(value['y']) + " ended @ " + str(value['x_out']) + "," + str(value['y_out']))
+            start_sector = self.get_touch_sector(value['x'])
+            end_sector   = self.get_touch_sector(value['x_out'])
+            # Only accept drags that remain inside one sector
+            if start_sector != end_sector:
+                return
+            sector = start_sector
+            mode = 2
+
+        match sector:
+            case 0: self.touch_0(mode, value)
+            case 1: self.touch_1(mode, value)
+            case 2: self.touch_2(mode, value)
+            case 3: self.touch_3(mode, value)
